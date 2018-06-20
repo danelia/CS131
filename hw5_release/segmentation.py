@@ -35,9 +35,12 @@ def kmeans(features, k, num_iters=100):
     assignments = np.zeros(N)
 
     for n in range(num_iters):
-        ### YOUR CODE HERE
-        pass
-        ### END YOUR CODE
+        for i in range(N):
+            assignments[i] = np.argmin([np.linalg.norm(features[i]-centers[j]) for j in range(k)])
+        temp = centers.copy()
+        centers = [np.mean(features[assignments == j], axis=0) for j in range(k)]
+        if np.allclose(temp, centers):
+            break
 
     return assignments
 
@@ -71,9 +74,12 @@ def kmeans_fast(features, k, num_iters=100):
     assignments = np.zeros(N)
 
     for n in range(num_iters):
-        ### YOUR CODE HERE
-        pass
-        ### END YOUR CODE
+        tm = (np.tile(features, (k, 1))-np.repeat(centers, N, axis=0))**2
+        assignments = np.argmin(np.sum(tm, axis=1).reshape(k, N), axis=0)
+        temp = centers.copy()
+        centers = [np.mean(features[assignments == j], axis=0) for j in range(k)]
+        if np.allclose(temp, centers):
+            break
 
     return assignments
 
@@ -123,9 +129,17 @@ def hierarchical_clustering(features, k):
     n_clusters = N
 
     while n_clusters > k:
-        ### YOUR CODE HERE
-        pass
-        ### END YOUR CODE
+        y = squareform(pdist(centers, 'euclidean'))
+        np.fill_diagonal(y, 1e10)
+        
+        pair = (y.argmin() // y.shape[0], y.argmin() % y.shape[1])
+        n_clusters -= 1
+        
+        centers[pair[0]] = (centers[pair[0]] + centers[pair[1]]) / 2
+        centers = np.delete(centers, pair[1], 0)
+        for i in range(N):
+            if assignments[i] > pair[1] - 1:
+                assignments[i] = pair[0] if assignments[i] == pair[1] else assignments[i] - 1
 
     return assignments
 
@@ -144,9 +158,7 @@ def color_features(img):
     img = img_as_float(img)
     features = np.zeros((H*W, C))
 
-    ### YOUR CODE HERE
-    pass
-    ### END YOUR CODE
+    features = img.reshape(H*W, C)
 
     return features
 
@@ -171,11 +183,15 @@ def color_position_features(img):
     H, W, C = img.shape
     color = img_as_float(img)
     features = np.zeros((H*W, C+2))
-
-    ### YOUR CODE HERE
-    pass
-    ### END YOUR CODE
-
+    
+    x = np.array([range(H)] * W).T
+    y = np.array([range(W)] * H)
+    x = (x - np.mean(x)) / np.std(x)
+    y = (y - np.mean(y)) / np.std(y)
+    
+    features[:, :C] = (color.reshape((H * W, C)) - np.mean(color)) / np.std(color)
+    features[:, C:] = np.dstack((x, y)).reshape((H * W, 2)) 
+    
     return features
 
 def my_features(img):
@@ -212,9 +228,9 @@ def compute_accuracy(mask_gt, mask):
     """
 
     accuracy = None
-    ### YOUR CODE HERE
-    pass
-    ### END YOUR CODE
+    
+    h, w = mask.shape
+    accuracy = sum([1 if(mask_gt[i, j] == mask[i, j]) else 0 for j in range(w) for i in range(h)]) / (h * w)
 
     return accuracy
 
