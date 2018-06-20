@@ -32,10 +32,15 @@ def harris_corners(img, window_size=3, k=0.04):
 
     dx = filters.sobel_v(img)
     dy = filters.sobel_h(img)
-
-    ### YOUR CODE HERE
-    pass
-    ### END YOUR CODE
+    
+    dx_prod = convolve(dx * dx, window)
+    dy_prod = convolve(dy * dy, window)
+    dx_dy_p = convolve(dx * dy, window)
+    
+    for x in range(H):
+        for y in range(W):
+            M = np.array([[dx_prod[x, y], dx_dy_p[x, y]], [dx_dy_p[x, y], dy_prod[x, y]]])
+            response[x, y] = np.linalg.det(M) - k * (np.trace(M) ** 2)
 
     return response
 
@@ -58,11 +63,12 @@ def simple_descriptor(patch):
     Returns:
         feature: 1D array of shape (h * w)
     """
-    feature = []
-    ### YOUR CODE HERE
-    pass
-    ### END YOUR CODE
-    return feature
+    
+    std = np.std(patch)
+    std = 1.0 if std == 0.0 else std
+    mean = np.mean(patch)
+    
+    return ((patch - mean) / std).reshape(-1)
 
 
 def describe_keypoints(image, keypoints, desc_func, patch_size=16):
@@ -109,9 +115,8 @@ def match_descriptors(desc1, desc2, threshold=0.5):
     N = desc1.shape[0]
     dists = cdist(desc1, desc2)
 
-    ### YOUR CODE HERE
-    pass
-    ### END YOUR CODE
+    matches = [[i, np.argmin(dists[i, :])] for i in range(N) if np.min(dists[i, :]) / (np.partition(dists[i, :], 2)[1]) <= threshold]
+    matches = np.array(matches).reshape(-1, 2)
     
     return matches
 
@@ -134,10 +139,8 @@ def fit_affine_matrix(p1, p2):
         'Different number of points in p1 and p2'
     p1 = pad(p1)
     p2 = pad(p2)
-
-    ### YOUR CODE HERE
-    pass
-    ### END YOUR CODE
+    
+    H = np.linalg.lstsq(p2, p1)[0]
 
     # Sometimes numerical issues cause least-squares to produce the last
     # column which is not exactly [0, 0, 1]
@@ -177,9 +180,23 @@ def ransac(keypoints1, keypoints2, matches, n_iters=200, threshold=20):
     n_inliers = 0
 
     # RANSAC iteration start
-    ### YOUR CODE HERE
-    pass
-    ### END YOUR CODE
+    for i in range(n_iters):
+        rand = np.random.choice(N, n_samples, replace=False)
+        p1 = matched1[rand, :]
+        p2 = matched2[rand, :]
+        H = np.linalg.lstsq(p2, p1)[0]
+        H[:,2] = np.array([0, 0, 1])
+        
+        curr_max_inliers = np.linalg.norm(matched2.dot(H) - matched1, axis=1) ** 2 < threshold
+        curr_n_inliers = np.sum(curr_max_inliers)
+        if curr_n_inliers > n_inliers:
+            n_inliers = curr_n_inliers
+            max_inliers = curr_max_inliers.copy()
+    
+    H = np.linalg.lstsq(matched2[max_inliers], matched1[max_inliers])[0]
+    H[:,2] = np.array([0, 0, 1])
+    
+
     return H, matches[max_inliers]
 
 
@@ -218,12 +235,20 @@ def hog_descriptor(patch, pixels_per_cell=(8,8)):
     theta_cells = view_as_blocks(theta, block_shape=pixels_per_cell)
     rows = G_cells.shape[0]
     cols = G_cells.shape[1]
+    M = G_cells.shape[2]
+    N = G_cells.shape[3]
 
     cells = np.zeros((rows, cols, n_bins))
 
     # Compute histogram per cell
-    ### YOUR CODE HERE
-    pass
-    ### YOUR CODE HERE
+    for i in range(rows):
+        for j in range(cols):
+            for m in range(M):
+                for n in range(N):
+                    d = int((theta_cells[i, j, m, n] + 180) * n_bins)//360
+                    d = d - 1 if d == 9 else d
+                    cells[i, j, d] += G_cells[i, j, m, n]
+    
+    block = cells.reshape(-1)
     
     return block
